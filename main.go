@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"cloud.google.com/go/storage"
+	"google.golang.org/api/iterator"
 )
 
 func main() {
@@ -26,4 +27,17 @@ func main() {
 	}
 	fmt.Printf("bucket %s, created at %s, is located in %s with storage class %s\n",
 		attrs.Name, attrs.Created, attrs.Location, attrs.StorageClass)
+
+	it := bkt.Objects(ctx, nil)
+	for {
+		attrs, err := it.Next()
+
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			panic(err)
+		}
+		fmt.Printf("%s", attrs.Created)
+	}
 }
