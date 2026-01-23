@@ -5,9 +5,14 @@ import (
 	"fmt"
 
 	"cloud.google.com/go/storage"
-	"google.golang.org/api/iterator"
+	"github.com/apache/arrow/go/v18/arrow/memory"
+	parquet "github.com/apache/arrow/go/v18/parquet"
+	"github.com/apache/arrow/go/v18/parquet/file"
 )
 
+func parquetReader() {
+
+}
 func main() {
 
 	ctx := context.Background()
@@ -17,6 +22,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	defer client.Close()
 
 	bkt := client.Bucket("pharmaccess-cs")
 
@@ -27,17 +33,35 @@ func main() {
 	}
 	fmt.Printf("bucket %s, created at %s, is located in %s with storage class %s\n",
 		attrs.Name, attrs.Created, attrs.Location, attrs.StorageClass)
+	var object string = "28_dat.parquet"
+	it := bkt.Object(object)
 
-	it := bkt.Objects(ctx, nil)
-	for {
-		attrs, err := it.Next()
+	reader, err := it.NewReader(ctx)
 
-		if err == iterator.Done {
-			break
-		}
-		if err != nil {
-			panic(err)
-		}
-		fmt.Printf("%s", attrs.Created)
+	if err != nil {
+		panic(err)
 	}
+
+	defer reader.Close()
+
+	rdr, err := file.OpenParquetFile(reader, false, file.WithReadProps(parquet.NewReaderProperties(memory.DefaultAllocator)))
+
+	if err != nil {
+		panic(err)
+	}
+
+	defer rdr.Close()
+
+	fmt.Println(rdr.MetaData())
+	// for {
+	// 	attrs, err := it.Next()
+	// 	if err == iterator.Done {
+	// 		break
+	// 	}
+	// 	if err != nil {
+	// 		panic(err)
+	// 	}
+	// 	fmt.Printf("%s", attrs.Created)
+	// 	reader, err := it.NewReader(ctx)
+	// }
 }
