@@ -1,58 +1,49 @@
 package main
 
 import (
-	"context"
-	"fmt"
-
-	"cloud.google.com/go/storage"
-	"github.com/apache/arrow/go/v18/arrow/memory"
-	parquet "github.com/apache/arrow/go/v18/parquet"
-	"github.com/apache/arrow/go/v18/parquet/file"
+	extractor "github.com/ejakait/meta_crawler/internal/extractor"
 )
 
 func parquetReader() {
-
 }
+
 func main() {
+	// ctx := context.Background()
 
-	ctx := context.Background()
+	// client, err := storage.NewClient(ctx)
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// defer client.Close()
 
-	client, err := storage.NewClient(ctx)
+	// bkt := client.Bucket("pharmaccess-cs")
 
-	if err != nil {
-		panic(err)
-	}
-	defer client.Close()
+	// attrs, err := bkt.Attrs(ctx)
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// fmt.Printf("bucket %s, created at %s, is located in %s with storage class %s\n",
+	// 	attrs.Name, attrs.Created, attrs.Location, attrs.StorageClass)
+	// var object string = "28_dat.parquet"
+	// it := bkt.Object(object)
 
-	bkt := client.Bucket("pharmaccess-cs")
+	// reader, err := it.NewReader(ctx)
+	// if err != nil {
+	// 	panic(err)
+	// }
 
-	attrs, err := bkt.Attrs(ctx)
+	// defer reader.Close()
 
-	if err != nil {
-		panic(err)
-	}
-	fmt.Printf("bucket %s, created at %s, is located in %s with storage class %s\n",
-		attrs.Name, attrs.Created, attrs.Location, attrs.StorageClass)
-	var object string = "28_dat.parquet"
-	it := bkt.Object(object)
+	// rdr, err := file.OpenParquetFile(reader, false, file.WithReadProps(parquet.NewReaderProperties(memory.DefaultAllocator)))
+	// if err != nil {
+	// 	panic(err)
+	// }
 
-	reader, err := it.NewReader(ctx)
+	// defer rdr.Close()
 
-	if err != nil {
-		panic(err)
-	}
+	// fmt.Println(rdr.MetaData())
 
-	defer reader.Close()
-
-	rdr, err := file.OpenParquetFile(reader, false, file.WithReadProps(parquet.NewReaderProperties(memory.DefaultAllocator)))
-
-	if err != nil {
-		panic(err)
-	}
-
-	defer rdr.Close()
-
-	fmt.Println(rdr.MetaData())
+	extractor.ExtractParquetMetadata("25-csv-20250827124850_dat.parquet")
 	// for {
 	// 	attrs, err := it.Next()
 	// 	if err == iterator.Done {

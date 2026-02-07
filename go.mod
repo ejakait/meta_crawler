@@ -4,6 +4,7 @@ go 1.24.11
 
 require (
 	cloud.google.com/go/storage v1.59.1
+	github.com/apache/arrow/go/parquet v0.0.0-20211112161151-bc219186db40
 	github.com/apache/arrow/go/v18 v18.0.0-20241007013041-ab95a4d25142
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/lipgloss v1.1.0
@@ -22,6 +23,7 @@ require (
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.54.0 // indirect
 	github.com/JohnCGriffin/overflow v0.0.0-20211019200055-46fa312c352c // indirect
 	github.com/andybalholm/brotli v1.2.0 // indirect
+	github.com/apache/arrow/go/arrow v0.0.0-20211025125312-be665ef948cb // indirect
 	github.com/apache/thrift v0.22.0 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
