@@ -1,18 +1,20 @@
 package internal
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/apache/arrow/go/v18/arrow/memory"
 	"github.com/apache/arrow/go/v18/parquet"
 	"github.com/apache/arrow/go/v18/parquet/file"
+	"github.com/apache/arrow/go/v18/parquet/schema"
 )
 
 type RowGroupMetadata struct {
-	RowCount              int64
-	ColumnCount           int32
-	TotalCompressedSize   int64
-	TotalUncompressedSize int64
+	RowCount              int
+	ColumnCount           int
+	TotalCompressedSize   *int64
+	TotalUncompressedSize int
 }
 
 type BaseParquetMetadata struct {
@@ -23,8 +25,9 @@ type BaseParquetMetadata struct {
 }
 
 type ColumnMetadata struct {
-	Name        string
-	LogicalType parquet.Type
+	Name         string
+	PhysicalType parquet.Type
+	LogicalType  schema.LogicalType
 }
 
 func ExtractParquetMetadata(filePath string) {
@@ -38,6 +41,7 @@ func ExtractParquetMetadata(filePath string) {
 	defer rdr.Close()
 
 	metadata := rdr.MetaData()
+	fmt.Print(len(metadata.RowGroups))
 	basemeta := &BaseParquetMetadata{
 		NumColumns:   int32(metadata.Schema.NumColumns()),
 		NumRowGroups: int32(metadata.NumRows),
@@ -45,27 +49,40 @@ func ExtractParquetMetadata(filePath string) {
 		Columns:      make([]ColumnMetadata, metadata.Schema.NumColumns()),
 	}
 
+	fmt.Println(basemeta.NumRowGroups)
 	// Extract row group metadata
-	// for i := 0; i < int(basemeta.NumRowGroups); i++ {
-	// 	rowGroup := metadata.RowGroups[i]
-	// 	basemeta.RowGroups[i] = RowGroupMetadata{
-	// 		RowCount:              rowGroup.NumRows,
-	// 		ColumnCount:           rowGroup.Columns,
-	// 		TotalCompressedSize:   rowGroup.TotalByteSize,
-	// 		TotalUncompressedSize: rowGroup.TotalUncompressedSize,
-	// 	}
-	// }
 
-	// // Extract column metadata
-	// for i := 0; i < metadata.NumColumns; i++ {
-	// 	column := metadata.Columns[i]
-	// 	metadata.Columns[i] = ColumnMetadata{
-	// 		Name:        column.Name,
-	// 		LogicalType: column.LogicalType,
-	// 	}
-	// }
+	if basemeta.NumRowGroups > 1 {
+		fmt.Println("More than one row group found")
+
+		for i := 0; i < int(len(basemeta.RowGroups)); i++ {
+			fmt.Println("RowGroup:", i)
+			rowGroup := metadata.RowGroups[i]
+			basemeta.RowGroups[i] = RowGroupMetadata{
+				RowCount:              int(rowGroup.NumRows),
+				ColumnCount:           len(rowGroup.GetColumns()),
+				TotalCompressedSize:   rowGroup.TotalCompressedSize,
+				TotalUncompressedSize: int(rowGroup.TotalByteSize),
+			}
+		}
+	}
+
+	// Extract column metadata
+	for i := 0; i < metadata.Schema.NumColumns(); i++ {
+		column := metadata.Schema.Column(i)
+		basemeta.Columns[i] = ColumnMetadata{
+			Name:         column.Name(),
+			PhysicalType: column.PhysicalType(),
+			LogicalType:  column.LogicalType(),
+		}
+	}
+
+	meta_json, err := json.Marshal(basemeta)
+	if err != nil {
+		panic(err)
+	}
 
 	// return metadata, nil
-	fmt.Println(basemeta)
+	fmt.Println(string(meta_json))
 	return
 }
