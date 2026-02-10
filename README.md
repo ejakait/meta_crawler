@@ -52,7 +52,8 @@ For a data catalog, tview.Table + TreeView works very well: left side tree for d
 - description TEXT
 - owner TEXT
 - tags TEXT (comma-separated or JSON)
-- files
+
+***files***
 - id INTEGER PRIMARY KEY
 - dataset_id INTEGER
 - gcs_uri TEXT

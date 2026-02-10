@@ -30,7 +30,7 @@ type ColumnMetadata struct {
 	LogicalType  schema.LogicalType
 }
 
-func ExtractParquetMetadata(filePath string) {
+func ExtractParquetMetadata(filePath string) ([]byte, error) {
 	// Implementation of ExtractParquetMetadata function
 
 	// Read the Parquet file
@@ -82,7 +82,6 @@ func ExtractParquetMetadata(filePath string) {
 		panic(err)
 	}
 
-	// return metadata, nil
 	fmt.Println(string(meta_json))
-	return
+	return meta_json, nil
 }
