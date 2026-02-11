@@ -1,15 +1,28 @@
 package main
 
 import (
-	extractor "github.com/ejakait/meta_crawler/internal/extractor"
+	"context"
+	"fmt"
+	"log/slog"
+	"os"
+	"time"
+
+	storage "github.com/ejakait/meta_crawler/internal/storage"
 )
 
-func parquetReader() {
-}
+type requestKey string
+
+const requestIDKey requestKey = "requestID"
 
 func main() {
-	// ctx := context.Background()
-
+	ctx := context.Background()
+	handler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		AddSource: false,
+		Level:     slog.LevelInfo,
+	})
+	logger := slog.New(handler)
+	slog.SetDefault(logger)
+	slog.Info("Application Started")
 	// client, err := storage.NewClient(ctx)
 	// if err != nil {
 	// 	panic(err)
@@ -42,8 +55,22 @@ func main() {
 	// defer rdr.Close()
 
 	// fmt.Println(rdr.MetaData())
+	requestID := "req-" + time.Now().Format("20060102150405")
+	ctx = context.WithValue(ctx, requestIDKey, requestID)
+	requestLogger := logger.With(slog.String("requestID", requestID))
+	storage.InitDB(ctx, requestLogger, "meta.db")
 
-	extractor.ExtractParquetMetadata("25-csv-20250827124850_dat.parquet")
+	files, err := storage.ListGCSFiles("Google Cloud Storage")
+	if err != nil {
+		fmt.Errorf("failed to list files: %v", err)
+
+	}
+	if len(files) == 0 {
+		fmt.Errorf("no files found")
+	}
+	fmt.Print(files)
+	// extractor.ExtractParquetMetadata(ctx, requestLogger, "25-csv-20250827124850_dat.parquet")
+
 	// for {
 	// 	attrs, err := it.Next()
 	// 	if err == iterator.Done {

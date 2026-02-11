@@ -1,8 +1,10 @@
 package internal
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 
 	"github.com/apache/arrow/go/v18/arrow/memory"
 	"github.com/apache/arrow/go/v18/parquet"
@@ -30,18 +32,25 @@ type ColumnMetadata struct {
 	LogicalType  schema.LogicalType
 }
 
-func ExtractParquetMetadata(filePath string) ([]byte, error) {
-	// Implementation of ExtractParquetMetadata function
+func ExtractParquetMetadata(ctx context.Context, logger *slog.Logger, filePath string) ([]byte, error) {
 
+	// Implementation of ExtractParquetMetadata function
+	extractorLogger := logger.With(slog.String("file", filePath))
 	// Read the Parquet file
+	extractorLogger.InfoContext(ctx, "Opening file", "status", "initated")
 	rdr, err := file.OpenParquetFile(filePath, false, file.WithReadProps(parquet.NewReaderProperties(memory.DefaultAllocator)))
 	if err != nil {
-		panic(err)
+		extractorLogger.ErrorContext(ctx, "Failed to open file", "error", err)
+		return nil, err
 	}
-	defer rdr.Close()
+	defer func() {
+		rdr.Close()
+		extractorLogger.InfoContext(ctx, "Closing file", "status", "completed")
+	}()
 
 	metadata := rdr.MetaData()
-	fmt.Print(len(metadata.RowGroups))
+
+	extractorLogger.InfoContext(ctx, "Extracting metadata")
 	basemeta := &BaseParquetMetadata{
 		NumColumns:   int32(metadata.Schema.NumColumns()),
 		NumRowGroups: int32(metadata.NumRows),
@@ -49,12 +58,9 @@ func ExtractParquetMetadata(filePath string) ([]byte, error) {
 		Columns:      make([]ColumnMetadata, metadata.Schema.NumColumns()),
 	}
 
-	fmt.Println(basemeta.NumRowGroups)
+	extractorLogger.InfoContext(ctx, "Extracting row group metadata")
 	// Extract row group metadata
-
 	if basemeta.NumRowGroups > 1 {
-		fmt.Println("More than one row group found")
-
 		for i := 0; i < int(len(basemeta.RowGroups)); i++ {
 			fmt.Println("RowGroup:", i)
 			rowGroup := metadata.RowGroups[i]
@@ -66,7 +72,9 @@ func ExtractParquetMetadata(filePath string) ([]byte, error) {
 			}
 		}
 	}
+	extractorLogger.InfoContext(ctx, "Extracted row group metadata", "status", "completed", "row_groups", len(basemeta.RowGroups))
 
+	extractorLogger.InfoContext(ctx, "Extracting column metadata")
 	// Extract column metadata
 	for i := 0; i < metadata.Schema.NumColumns(); i++ {
 		column := metadata.Schema.Column(i)
@@ -76,12 +84,12 @@ func ExtractParquetMetadata(filePath string) ([]byte, error) {
 			LogicalType:  column.LogicalType(),
 		}
 	}
+	extractorLogger.InfoContext(ctx, "Extracted column metadata", "status", "completed", "columns", len(basemeta.Columns))
 
 	meta_json, err := json.Marshal(basemeta)
 	if err != nil {
-		panic(err)
+		extractorLogger.ErrorContext(ctx, "Failed to marshal metadata", "error", err)
 	}
 
-	fmt.Println(string(meta_json))
 	return meta_json, nil
 }
