@@ -2,17 +2,15 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"os"
 	"time"
 
 	storage "github.com/ejakait/meta_crawler/internal/storage"
+
+	bufra "github.com/avvmoto/buf-readerat"
+	parquet "github.com/parquet-go/parquet-go"
 )
-
-type requestKey string
-
-const requestIDKey requestKey = "requestID"
 
 func main() {
 	ctx := context.Background()
@@ -23,63 +21,35 @@ func main() {
 	logger := slog.New(handler)
 	slog.SetDefault(logger)
 	slog.Info("Application Started")
-	// client, err := storage.NewClient(ctx)
-	// if err != nil {
-	// 	panic(err)
-	// }
-	// defer client.Close()
-
-	// bkt := client.Bucket("pharmaccess-cs")
-
-	// attrs, err := bkt.Attrs(ctx)
-	// if err != nil {
-	// 	panic(err)
-	// }
-	// fmt.Printf("bucket %s, created at %s, is located in %s with storage class %s\n",
-	// 	attrs.Name, attrs.Created, attrs.Location, attrs.StorageClass)
-	// var object string = "28_dat.parquet"
-	// it := bkt.Object(object)
-
-	// reader, err := it.NewReader(ctx)
-	// if err != nil {
-	// 	panic(err)
-	// }
-
-	// defer reader.Close()
-
-	// rdr, err := file.OpenParquetFile(reader, false, file.WithReadProps(parquet.NewReaderProperties(memory.DefaultAllocator)))
-	// if err != nil {
-	// 	panic(err)
-	// }
-
-	// defer rdr.Close()
-
-	// fmt.Println(rdr.MetaData())
 	requestID := "req-" + time.Now().Format("20060102150405")
-	ctx = context.WithValue(ctx, requestIDKey, requestID)
 	requestLogger := logger.With(slog.String("requestID", requestID))
 	storage.InitDB(ctx, requestLogger, "meta.db")
 
-	files, err := storage.ListGCSFiles("Google Cloud Storage")
+	containerList, err := storage.ListGCSContainers("google", requestLogger)
+
+	logger.Info("containers found", "count", len(containerList))
 	if err != nil {
-		fmt.Errorf("failed to list files: %v", err)
+		logger.Error("failed to list files", "error", err)
 
 	}
-	if len(files) == 0 {
-		fmt.Errorf("no files found")
-	}
-	fmt.Print(files)
-	// extractor.ExtractParquetMetadata(ctx, requestLogger, "25-csv-20250827124850_dat.parquet")
 
-	// for {
-	// 	attrs, err := it.Next()
-	// 	if err == iterator.Done {
-	// 		break
-	// 	}
-	// 	if err != nil {
-	// 		panic(err)
-	// 	}
-	// 	fmt.Printf("%s", attrs.Created)
-	// 	reader, err := it.NewReader(ctx)
-	// }
+	containerItems, err := storage.ListContainerItems(requestLogger, "pharmaccess-cs")
+	if err != nil {
+		logger.Error("failed to list container items", "error", err)
+	}
+	for _, item := range containerItems {
+		size, _ := item.Size()
+		rawReader := &storage.StowReaderAt{Item: item}
+
+		bufferedReader := bufra.NewBufReaderAt(rawReader, 1024*1024)
+
+		pf, err := parquet.OpenFile(bufferedReader, size)
+
+		if err != nil {
+			logger.Error("failed to open parquet file", "error", err)
+			continue
+		}
+
+		logger.Info("file found", "name", item.Name(), "size", size, "rows", pf.NumRows(), "columns", len(pf.Schema().Fields()))
+	}
 }
