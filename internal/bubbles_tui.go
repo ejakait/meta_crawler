@@ -1,4 +1,4 @@
-package main
+package bubbles_tui
 
 import (
 	"fmt"
