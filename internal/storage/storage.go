@@ -54,35 +54,11 @@ func connectGCS() (stow.Location, error) {
 	return location, nil
 }
 
-// func ListGCSContainers(kind string, logger *slog.Logger) ([]string, error) {
-
-// 	location, err := connectGCS()
-// 	if err != nil {
-// 		logger.Info("failed to connect to GCS", "error", err)
-// 		return nil, err
-// 	}
-
-// 	fileList := []string{}
-// 	err = stow.WalkContainers(location, stow.NoPrefix, 100, func(c stow.Container, err error) error {
-// 		if err != nil {
-// 			return err
-// 		}
-// 		logger.Info("container name", "name", c.Name())
-// 		fileList = append(fileList, c.Name())
-// 		return nil
-// 	})
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	return fileList, nil
-// }
-
-func ListGCSContainers(kind string, logger *slog.Logger) ([]stow.Container, error) {
+func ListGCSContainers(kind string) ([]stow.Container, error) {
 
 	location, err := connectGCS()
 	if err != nil {
-		logger.Info("failed to connect to GCS", "error", err)
+		slog.Info("failed to connect to GCS", "error", err)
 		return nil, err
 	}
 
@@ -91,7 +67,7 @@ func ListGCSContainers(kind string, logger *slog.Logger) ([]stow.Container, erro
 		if err != nil {
 			return err
 		}
-		logger.Info("container name", "name", c.Name())
+		slog.Info("container name", "name", c.Name())
 		containerList = append(containerList, c)
 		return nil
 	})
@@ -102,10 +78,10 @@ func ListGCSContainers(kind string, logger *slog.Logger) ([]stow.Container, erro
 	return containerList, nil
 }
 
-func ListContainerItems(logger *slog.Logger, locContainer string) ([]stow.Item, error) {
+func ListContainerItems(locContainer string) ([]stow.Item, error) {
 	loc, err := connectGCS()
 	if err != nil {
-		logger.Info("failed to connect to GCS", "error", err)
+		slog.Info("failed to connect to GCS", "error", err)
 		return nil, err
 	}
 	container, _ := loc.Container(locContainer)
@@ -114,7 +90,7 @@ func ListContainerItems(logger *slog.Logger, locContainer string) ([]stow.Item, 
 		if err != nil {
 			return err
 		}
-		logger.Info("item name", "name", item.Name())
+		slog.Info("item name", "name", item.Name())
 		fileList = append(fileList, item)
 		return nil
 	})
