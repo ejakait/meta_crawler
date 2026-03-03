@@ -5,6 +5,7 @@ import (
 	"io"
 	"log/slog"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -162,7 +163,7 @@ func StartCrawl(ctx context.Context, crawlerParams *GoogleCrawler) error {
 	defer func() {
 		slog.Info("Crawl completed", "duration", time.Since(start))
 	}()
-
+	wg := sync.WaitGroup{}
 	c := &GoogleCrawler{
 		ProjectID:  crawlerParams.ProjectID,
 		JsonConfig: crawlerParams.JsonConfig,
@@ -186,6 +187,7 @@ func StartCrawl(ctx context.Context, crawlerParams *GoogleCrawler) error {
 		return err
 	}
 	for _, container := range containerList {
+
 		items, err := c.CrawlContainers(ctx, container)
 		if err != nil {
 			return err
@@ -199,12 +201,20 @@ func StartCrawl(ctx context.Context, crawlerParams *GoogleCrawler) error {
 		}
 		items = parquetItems
 		for _, item := range items {
-			metadata, err := c.GetParquetMetadata(ctx, item)
-			if err != nil {
-				return err
-			}
-			slog.Info("item name", "name", item.Name(), "container", container.Name(), "size", metadata.Size, "rows", metadata.NumRows, "schema", metadata.Schema)
+			wg.Add(1)
+
+			go func() {
+				defer wg.Done()
+				metadata, err := c.GetParquetMetadata(ctx, item)
+				if err != nil {
+					slog.Error("GetParquetMetadata error", "error", err)
+					return
+				}
+				slog.Info("item name", "name", item.Name(), "container", container.Name(), "size", metadata.Size, "rows", metadata.NumRows, "schema", metadata.Schema)
+			}()
 		}
+		wg.Wait()
+
 	}
 
 	return nil
