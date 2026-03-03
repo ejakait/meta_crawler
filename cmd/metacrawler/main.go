@@ -30,10 +30,17 @@ func main() {
 
 	slog.Info("Application Started")
 	storage.InitDB(ctx, "meta.db")
+
 	config := make(map[string]string)
+
 	config["project_id"] = "vbcdata"
 	config["json_config"] = string(GOOGLE_CREDENTIALS_JSON)
-	err = crawler.StartCrawl(ctx, config)
+
+	crawlerParams := &crawler.GoogleCrawler{
+		ProjectID:  config["project_id"],
+		JsonConfig: config["json_config"],
+	}
+	err = crawler.StartCrawl(ctx, crawlerParams)
 	if err != nil {
 		slog.Error("failed to start crawl", "error", err)
 		return
