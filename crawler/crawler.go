@@ -14,6 +14,10 @@ import (
 	parquet "github.com/parquet-go/parquet-go"
 )
 
+const (
+	stowPageSize = 1000
+)
+
 type Metadata struct {
 	Name        string
 	Size        int64
@@ -69,7 +73,7 @@ func (c *GoogleCrawler) InitCrawler(ctx context.Context) (stow.Location, error) 
 
 func (c *GoogleCrawler) CrawlContainers(ctx context.Context, container stow.Container) ([]stow.Item, error) {
 	items := []stow.Item{}
-	err := stow.Walk(container, stow.NoPrefix, 100, func(item stow.Item, err error) error {
+	err := stow.Walk(container, stow.NoPrefix, stowPageSize, func(item stow.Item, err error) error {
 		if err != nil {
 			return err
 		}
@@ -182,7 +186,7 @@ func StartCrawl(ctx context.Context, crawlerParams *GoogleCrawler) error {
 	defer location.Close()
 	containerList := []stow.Container{}
 	slog.Info("Crawling location")
-	err = stow.WalkContainers(location, stow.NoPrefix, 100, func(c stow.Container, err error) error {
+	err = stow.WalkContainers(location, c.Prefix, stowPageSize, func(c stow.Container, err error) error {
 		if err != nil {
 			return err
 		}
