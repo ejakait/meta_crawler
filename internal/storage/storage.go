@@ -54,7 +54,7 @@ func connectGCS() (stow.Location, error) {
 	return location, nil
 }
 
-func ListGCSContainers(kind string) ([]stow.Container, error) {
+func ListGCSContainers() ([]stow.Container, error) {
 
 	location, err := connectGCS()
 	if err != nil {

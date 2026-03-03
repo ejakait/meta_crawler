@@ -58,26 +58,26 @@ func InitDB(ctx context.Context, dbPath string) error {
 		slog.ErrorContext(ctx, "failed to instantiate tables", "error", err)
 	}
 
-	stmt := `select * from datasets`
-	rows, err := db.QueryContext(ctx, stmt)
-	if err != nil {
-		slog.ErrorContext(ctx, "failed to query datasets", "error", err)
-		return fmt.Errorf("failed to query datasets: %w", err)
-	}
-	defer rows.Close()
+	// stmt := `select * from datasets`
+	// rows, err := db.QueryContext(ctx, stmt)
+	// if err != nil {
+	// 	slog.ErrorContext(ctx, "failed to query datasets", "error", err)
+	// 	return fmt.Errorf("failed to query datasets: %w", err)
+	// }
+	// defer rows.Close()
 
-	for rows.Next() {
-		var id int
-		var name string
-		var description string
-		var owner string
-		var tags string
-		if err := rows.Scan(&id, &name, &description, &owner, &tags); err != nil {
-			slog.ErrorContext(ctx, "failed to scan dataset", "error", err)
-			return fmt.Errorf("failed to scan dataset: %w", err)
-		}
-		slog.InfoContext(ctx, "dataset found", "id", id, "name", name, "description", description, "owner", owner, "tags", tags)
-	}
+	// for rows.Next() {
+	// 	var id int
+	// 	var name string
+	// 	var description string
+	// 	var owner string
+	// 	var tags string
+	// 	if err := rows.Scan(&id, &name, &description, &owner, &tags); err != nil {
+	// 		slog.ErrorContext(ctx, "failed to scan dataset", "error", err)
+	// 		return fmt.Errorf("failed to scan dataset: %w", err)
+	// 	}
+	// 	slog.InfoContext(ctx, "dataset found", "id", id, "name", name, "description", description, "owner", owner, "tags", tags)
+	// }
 
 	return nil
 }
