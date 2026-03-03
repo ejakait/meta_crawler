@@ -20,10 +20,10 @@ type Metadata struct {
 	ContentType string
 }
 
-type Crawler interface {
+type MetaDataCrawler interface {
 	InitCrawler(ctx context.Context, config stow.ConfigMap) (stow.Location, error)
 	CrawlContainers(ctx context.Context, continer stow.Container) ([]stow.Item, error)
-	GetMetaData(ctx context.Context, item stow.Item) (*Metadata, error)
+	GetParquetMetadata(ctx context.Context, item stow.Item) (*Metadata, error)
 }
 
 type GoogleCrawler struct {
@@ -82,57 +82,68 @@ func (c *GoogleCrawler) CrawlContainers(ctx context.Context, container stow.Cont
 	return items, nil
 }
 
-func (c *GoogleCrawler) GetMetaData(ctx context.Context, item stow.Item) (*Metadata, error) {
-
-	itemSize, err := item.Size()
-	if err != nil {
-		return nil, err
-	}
-
-	metadata := &Metadata{
-		Name:        item.Name(),
-		Size:        itemSize,
-		ContentType: item.ID(),
-	}
-
-	return metadata, nil
-}
-
 type stowReaderAt struct {
-	item      stow.Item
+	Item      stow.Item
 	ReadCount int64
 	BytesRead int64
 }
 
 func (r *stowReaderAt) ReadAt(p []byte, off int64) (n int, err error) {
-
 	atomic.AddInt64(&r.ReadCount, 1)
 	atomic.AddInt64(&r.BytesRead, int64(len(p)))
 
 	slog.Debug("ReadAt", slog.Int64("read_count", off), "Length", slog.Int64("bytes_read", int64(len(p))), "TotalReads", atomic.LoadInt64(&r.ReadCount))
 
-	rc, err := r.item.Open()
-
+	if ranger, ok := r.Item.(stow.ItemRanger); ok {
+		end := uint64(off) + uint64(len(p)) - 1
+		rc, err := ranger.OpenRange(uint64(off), end)
+		if err != nil {
+			return 0, err
+		}
+		defer rc.Close()
+		return io.ReadFull(rc, p)
+	}
+	rc, err := r.Item.Open()
 	if err != nil {
 		return 0, err
 	}
 	defer rc.Close()
-
-	if seeker, ok := rc.(io.ReadSeeker); ok {
-		_, err := seeker.Seek(off, io.SeekStart)
-		if err != nil {
-			return 0, err
-		}
-		return io.ReadFull(seeker, p)
-	}
-
 	// Fall back to ReadAt
-	_, err = io.CopyN(io.Discard, rc, off)
-	if err != nil {
+	if _, err = io.CopyN(io.Discard, rc, off); err != nil {
 		return 0, err
 	}
 	return io.ReadFull(rc, p)
 }
+
+// func (r *stowReaderAt) ReadAt(p []byte, off int64) (n int, err error) {
+
+// 	atomic.AddInt64(&r.ReadCount, 1)
+// 	atomic.AddInt64(&r.BytesRead, int64(len(p)))
+
+// 	slog.Debug("ReadAt", slog.Int64("read_count", off), "Length", slog.Int64("bytes_read", int64(len(p))), "TotalReads", atomic.LoadInt64(&r.ReadCount))
+
+// 	rc, err := r.Item.Open()
+
+// 	if err != nil {
+// 		return 0, err
+// 	}
+// 	defer rc.Close()
+
+// 	if seeker, ok := rc.(io.ReadSeeker); ok {
+// 		_, err := seeker.Seek(off, io.SeekStart)
+// 		if err != nil {
+// 			return 0, err
+// 		}
+// 		return io.ReadFull(seeker, p)
+// 	}
+
+// 	// Fall back to ReadAt
+// 	_, err = io.CopyN(io.Discard, rc, off)
+// 	if err != nil {
+// 		return 0, err
+// 	}
+// 	return io.ReadFull(rc, p)
+// }
 
 func (c *GoogleCrawler) GetParquetMetadata(ctx context.Context, item stow.Item) (*ItemMetadata, error) {
 
@@ -140,7 +151,7 @@ func (c *GoogleCrawler) GetParquetMetadata(ctx context.Context, item stow.Item) 
 	if err != nil {
 		return nil, err
 	}
-	readerAt := &stowReaderAt{item: item}
+	readerAt := &stowReaderAt{Item: item}
 
 	pf, err := parquet.OpenFile(readerAt, size)
 	if err != nil {
@@ -163,11 +174,7 @@ func StartCrawl(ctx context.Context, crawlerParams *GoogleCrawler) error {
 	defer func() {
 		slog.Info("Crawl completed", "duration", time.Since(start))
 	}()
-	wg := sync.WaitGroup{}
-	c := &GoogleCrawler{
-		ProjectID:  crawlerParams.ProjectID,
-		JsonConfig: crawlerParams.JsonConfig,
-	}
+	c := crawlerParams
 	location, err := c.InitCrawler(ctx)
 	if err != nil {
 		return err
@@ -186,8 +193,9 @@ func StartCrawl(ctx context.Context, crawlerParams *GoogleCrawler) error {
 	if err != nil {
 		return err
 	}
-	for _, container := range containerList {
 
+	wg := sync.WaitGroup{}
+	for _, container := range containerList {
 		items, err := c.CrawlContainers(ctx, container)
 		if err != nil {
 			return err
@@ -201,8 +209,8 @@ func StartCrawl(ctx context.Context, crawlerParams *GoogleCrawler) error {
 		}
 		items = parquetItems
 		for _, item := range items {
-			wg.Add(1)
 
+			wg.Add(1)
 			go func() {
 				defer wg.Done()
 				metadata, err := c.GetParquetMetadata(ctx, item)
