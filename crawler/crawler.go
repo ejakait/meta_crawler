@@ -4,11 +4,11 @@ import (
 	"context"
 	"io"
 	"log/slog"
-	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 
+	storage "github.com/ejakait/meta_crawler/internal/storage"
+	config "github.com/ejakait/meta_crawler/pkg/config"
 	stow "github.com/graymeta/stow"
 	stowgs "github.com/graymeta/stow/google"
 	parquet "github.com/parquet-go/parquet-go"
@@ -41,19 +41,6 @@ type LocationMetadata struct {
 	Name        string
 	Size        int64
 	ContentType string
-}
-
-type ContainerMetadata struct {
-	Name        string
-	Size        int64
-	ContentType string
-}
-
-type ItemMetadata struct {
-	Name    string
-	Size    int64
-	NumRows int64
-	Schema  []parquet.Field
 }
 
 func (c *GoogleCrawler) InitCrawler(ctx context.Context) (stow.Location, error) {
@@ -119,37 +106,7 @@ func (r *stowReaderAt) ReadAt(p []byte, off int64) (n int, err error) {
 	return io.ReadFull(rc, p)
 }
 
-// func (r *stowReaderAt) ReadAt(p []byte, off int64) (n int, err error) {
-
-// 	atomic.AddInt64(&r.ReadCount, 1)
-// 	atomic.AddInt64(&r.BytesRead, int64(len(p)))
-
-// 	slog.Debug("ReadAt", slog.Int64("read_count", off), "Length", slog.Int64("bytes_read", int64(len(p))), "TotalReads", atomic.LoadInt64(&r.ReadCount))
-
-// 	rc, err := r.Item.Open()
-
-// 	if err != nil {
-// 		return 0, err
-// 	}
-// 	defer rc.Close()
-
-// 	if seeker, ok := rc.(io.ReadSeeker); ok {
-// 		_, err := seeker.Seek(off, io.SeekStart)
-// 		if err != nil {
-// 			return 0, err
-// 		}
-// 		return io.ReadFull(seeker, p)
-// 	}
-
-// 	// Fall back to ReadAt
-// 	_, err = io.CopyN(io.Discard, rc, off)
-// 	if err != nil {
-// 		return 0, err
-// 	}
-// 	return io.ReadFull(rc, p)
-// }
-
-func (c *GoogleCrawler) GetParquetMetadata(ctx context.Context, item stow.Item) (*ItemMetadata, error) {
+func (c *GoogleCrawler) GetParquetMetadata(ctx context.Context, item stow.Item) (*storage.ItemMetadata, error) {
 
 	size, err := item.Size()
 	if err != nil {
@@ -162,7 +119,7 @@ func (c *GoogleCrawler) GetParquetMetadata(ctx context.Context, item stow.Item) 
 		return nil, err
 	}
 
-	return &ItemMetadata{
+	return &storage.ItemMetadata{
 		Name:    item.Name(),
 		Size:    size,
 		NumRows: pf.NumRows(),
@@ -184,13 +141,25 @@ func StartCrawl(ctx context.Context, crawlerParams *GoogleCrawler) error {
 		return err
 	}
 	defer location.Close()
+	db, err := storage.OpenDB(ctx, config.DbPath)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
 	containerList := []stow.Container{}
 	slog.Info("Crawling location")
 	err = stow.WalkContainers(location, c.Prefix, stowPageSize, func(c stow.Container, err error) error {
 		if err != nil {
 			return err
 		}
-		slog.Info("container name", "name", c.Name())
+
+		containerMetadata := storage.ContainerMetadata{
+			Name: c.Name(),
+		}
+		err = storage.SaveContainerMetadata(ctx, db, containerMetadata)
+		if err != nil {
+			return err
+		}
 		containerList = append(containerList, c)
 		return nil
 	})
@@ -198,36 +167,36 @@ func StartCrawl(ctx context.Context, crawlerParams *GoogleCrawler) error {
 		return err
 	}
 
-	wg := sync.WaitGroup{}
-	for _, container := range containerList {
-		items, err := c.CrawlContainers(ctx, container)
-		if err != nil {
-			return err
-		}
-		// Get only parquet files
-		var parquetItems []stow.Item
-		for _, item := range items {
-			if strings.HasSuffix(item.Name(), ".parquet") {
-				parquetItems = append(parquetItems, item)
-			}
-		}
-		items = parquetItems
-		for _, item := range items {
+	// wg := sync.WaitGroup{}
+	// for _, container := range containerList {
+	// 	items, err := c.CrawlContainers(ctx, container)
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	// 	// Get only parquet files
+	// 	var parquetItems []stow.Item
+	// 	for _, item := range items {
+	// 		if strings.HasSuffix(item.Name(), ".parquet") {
+	// 			parquetItems = append(parquetItems, item)
+	// 		}
+	// 	}
+	// 	items = parquetItems
+	// 	for _, item := range items {
 
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				metadata, err := c.GetParquetMetadata(ctx, item)
-				if err != nil {
-					slog.Error("GetParquetMetadata error", "error", err)
-					return
-				}
-				slog.Info("item name", "name", item.Name(), "container", container.Name(), "size", metadata.Size, "rows", metadata.NumRows, "schema", metadata.Schema)
-			}()
-		}
-		wg.Wait()
+	// 		wg.Add(1)
+	// 		go func() {
+	// 			defer wg.Done()
+	// 			metadata, err := c.GetParquetMetadata(ctx, item)
+	// 			if err != nil {
+	// 				slog.Error("GetParquetMetadata error", "error", err)
+	// 				return
+	// 			}
+	// 			slog.Info("item name", "name", item.Name(), "container", container.Name(), "size", metadata.Size, "rows", metadata.NumRows, "schema", metadata.Schema)
+	// 		}()
+	// 	}
+	// 	wg.Wait()
 
-	}
+	// }
 
 	return nil
 }
