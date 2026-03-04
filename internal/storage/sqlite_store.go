@@ -15,9 +15,13 @@ func createTables(ctx context.Context, db *sql.DB) error {
 		CREATE TABLE IF NOT EXISTS datasets (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			name TEXT NOT NULL UNIQUE,
-			description TEXT,
-			owner TEXT,
-			tags TEXT
+			description TEXT NULL,
+			owner TEXT NULL,
+			object_count INTEGER NULL,
+			location TEXT NULL,
+			tags TEXT NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 		);
 	`)
 	if err != nil {
@@ -78,6 +82,42 @@ func InitDB(ctx context.Context, dbPath string) error {
 	// 	}
 	// 	slog.InfoContext(ctx, "dataset found", "id", id, "name", name, "description", description, "owner", owner, "tags", tags)
 	// }
+
+	return nil
+}
+
+func OpenDB(ctx context.Context, dbPath string) (*sql.DB, error) {
+	db, err := sql.Open("sqlite3", dbPath)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to open database", "error", err)
+		return nil, fmt.Errorf("failed to open database: %w", err)
+	}
+	return db, nil
+}
+
+func SaveContainerMetadata(ctx context.Context, db *sql.DB, containerMetadata ContainerMetadata) error {
+	stmt := `INSERT INTO datasets (name, description, owner, object_count, location, tags) VALUES (?, ?, ?, ?, ?, ?) on conflict (name) do update set description = ?, owner = ?, object_count = ?, location = ?, tags = ?, updated_at = CURRENT_TIMESTAMP`
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to begin transaction", "error", err)
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer func() {
+		if err := tx.Rollback(); err != nil {
+			slog.ErrorContext(ctx, "failed to rollback transaction", "error", err)
+		}
+	}()
+
+	_, err = tx.ExecContext(ctx, stmt, containerMetadata.Name, containerMetadata.Description, containerMetadata.Owner, containerMetadata.ObjectCount, containerMetadata.Location, containerMetadata.Tags, containerMetadata.Description, containerMetadata.Owner, containerMetadata.ObjectCount, containerMetadata.Location, containerMetadata.Tags)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to save container metadata", "error", err)
+		return fmt.Errorf("failed to save container metadata: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		slog.ErrorContext(ctx, "failed to commit transaction", "error", err)
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
 
 	return nil
 }
