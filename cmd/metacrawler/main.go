@@ -8,6 +8,7 @@ import (
 	"github.com/ejakait/meta_crawler/crawler"
 	logging "github.com/ejakait/meta_crawler/internal/logging"
 	storage "github.com/ejakait/meta_crawler/internal/storage"
+	config "github.com/ejakait/meta_crawler/pkg/config"
 	"github.com/joho/godotenv"
 )
 
@@ -29,7 +30,7 @@ func main() {
 	ctx := context.Background()
 
 	slog.Info("Application Started")
-	storage.InitDB(ctx, "meta.db")
+	storage.InitDB(ctx, config.DbPath)
 
 	config := make(map[string]string)
 
